@@ -2,18 +2,13 @@ package stratum
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/json-iterator/go"
-)
-
-var (
-	json = jsoniter.Config{}.Froze()
 )
 
 // AgentConfig is used to create a new Agent
@@ -42,8 +37,8 @@ type Agent struct {
 	selfDestroyTimer *time.Timer
 	writeLock        sync.Mutex
 	alias            string
-	dec              *jsoniter.Decoder
-	enc              *jsoniter.Encoder
+	dec              *json.Decoder
+	enc              *json.Encoder
 	conf             *AgentConfig
 	seq              uint64
 	subcribeID       string
@@ -116,7 +111,7 @@ func (agent *Agent) loop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		default:
-			tmpMsg := new(jsoniter.RawMessage)
+			tmpMsg := new(json.RawMessage)
 			if err := agent.read(tmpMsg); err != nil {
 				logger.Warnf("AGENT[%s]: Disconnected, %v\n", agent.alias, err)
 				return
