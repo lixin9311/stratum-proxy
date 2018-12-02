@@ -35,7 +35,7 @@ type Agent struct {
 	destroyed        bool
 	rwLock           sync.RWMutex
 	selfDestroyTimer *time.Timer
-	writeLock        sync.Mutex
+	connLock         sync.Mutex
 	alias            string
 	dec              *json.Decoder
 	enc              *json.Encoder
@@ -219,17 +219,13 @@ func (agent *Agent) getResp(id uint64) (*Response, error) {
 }
 
 func (agent *Agent) write(v interface{}) error {
-	agent.writeLock.Lock()
-	defer agent.writeLock.Unlock()
+	agent.connLock.Lock()
+	defer agent.connLock.Unlock()
 	agent.selfDestroyTimer.Reset(agent.conf.AgentTimeout)
 	agent.conn.SetWriteDeadline(time.Now().Add(agent.conf.ConnTimeout))
 	b, _ := json.Marshal(v)
 	logger.Debugf("AGENT[%s] -> : \"%s\"\n", agent.alias, b)
 	return agent.enc.Encode(v)
-}
-
-func (agent *Agent) writeRaw(b []byte) (int, error) {
-	return agent.conn.Write(b)
 }
 
 func (agent *Agent) read(v interface{}) error {

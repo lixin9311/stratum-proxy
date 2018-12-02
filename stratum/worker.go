@@ -15,6 +15,7 @@ type Worker struct {
 	Username string
 	Password string
 
+	connLock     sync.Mutex
 	isDestroyed  bool
 	dec          *json.Decoder
 	enc          *json.Encoder
@@ -74,6 +75,8 @@ func (w *Worker) read(v interface{}) error {
 }
 
 func (w *Worker) write(v interface{}) error {
+	w.connLock.Lock()
+	defer w.connLock.Unlock()
 	b, _ := json.Marshal(v)
 	logger.Debugf("WORKER[%s] <- : \"%s\"\n", w.alias, b)
 	return w.enc.Encode(v)
