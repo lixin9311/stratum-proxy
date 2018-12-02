@@ -3,9 +3,11 @@ package main
 import (
 	"dayun/stratum-proxy/stratum"
 	"flag"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -76,6 +78,9 @@ func (s *stat) clearSubmit() {
 	s.numOfSubmits = 0
 }
 
+var uptimes = map[string]*time.Time{}
+var uptimeLock sync.Mutex
+
 func main() {
 	// test()
 	configPath := flag.String("c", "config.yaml", "Config file")
@@ -113,28 +118,61 @@ func main() {
 	globalLogger.Println("AgentTimeout:\t", globalConfig.AgentTimeout)
 	globalLogger.Println("ConnTimeout:\t\t", globalConfig.ConnTimeout)
 	stratum.SetLogger(globalLogger)
-	go func() {
-		for {
-			time.Sleep(time.Minute)
-			printReport()
-		}
-
-	}()
+	startReportLoop(time.Minute)
 	log.Println(ListenAndHandle(*listenPort))
 }
 
-func printReport() {
-	numOfWorker, numOfAgent, numOfSubmits := status.Data()
-	status.clearSubmit()
-	globalLogger.Println("AgentName:\t\t", globalConfig.AgentName)
-	globalLogger.Println("Upstream:\t\t", globalConfig.Upstream)
-	globalLogger.Println("WorkerDiff:\t\t", globalConfig.WorkerDifficulty)
-	globalLogger.Println("DebugLevel:\t\t", globalConfig.DebugLevel)
-	globalLogger.Println("AgentTimeout:\t", globalConfig.AgentTimeout)
-	globalLogger.Println("ConnTimeout:\t\t", globalConfig.ConnTimeout)
-	globalLogger.Println("Worker Alive:\t", numOfWorker)
-	globalLogger.Println("Agent Alice:\t\t", numOfAgent)
-	globalLogger.Println("Submits in 1min:\t", numOfSubmits)
+func startReportLoop(duration time.Duration) {
+	go func() {
+		for {
+			time.Sleep(duration)
+			numOfWorker, numOfAgent, numOfSubmits := status.Data()
+			status.clearSubmit()
+			globalLogger.Println("AgentName:          ", globalConfig.AgentName)
+			globalLogger.Println("Upstream:           ", globalConfig.Upstream)
+			globalLogger.Println("WorkerDiff:         ", globalConfig.WorkerDifficulty)
+			globalLogger.Println("DebugLevel:         ", globalConfig.DebugLevel)
+			globalLogger.Println("AgentTimeout:       ", globalConfig.AgentTimeout)
+			globalLogger.Println("ConnTimeout:        ", globalConfig.ConnTimeout)
+			globalLogger.Println("Worker Alive:       ", numOfWorker)
+			globalLogger.Println("Agent Alice:        ", numOfAgent)
+			globalLogger.Println("Submits in 1min:    ", numOfSubmits)
+			globalLogger.Println("============ individual report ============")
+			akeys := aPool.Keys()
+			sort.Strings(akeys)
+			for _, alias := range akeys {
+				worker, isOrphan := wPool.Get(alias)
+				// AGENT[0:x] orphan 0h0m0s
+				// AGENT[1:x] normal 0h0m0s WORKER[1:x] 1293MH/s 0h0m0s
+				var line string
+				uptimeLock.Lock()
+				aUptime := uptimes["A"+alias]
+				aUptimeStr := sinceFormat(aUptime)
+				if isOrphan {
+					line = fmt.Sprintf("AGENT[%s]\torphan\t%s", alias, aUptimeStr)
+				} else {
+					wUptime := uptimes["W"+alias]
+					mhash := globalConfig.WorkerDifficulty * 16 * float64(worker.ResetNumOfSubmits()) / duration.Seconds()
+					line = fmt.Sprintf("AGENT[%s]\tnormal\t%s\tWORKER[%s]\t%.1fMH/s\t%s", alias, aUptimeStr, alias, mhash, sinceFormat(wUptime))
+				}
+				uptimeLock.Unlock()
+				globalLogger.Println(line)
+			}
+			globalLogger.Println("=============== report end ================")
+		}
+	}()
+}
+
+func sinceFormat(from *time.Time) string {
+	if from == nil {
+		return "0h0m0s"
+	}
+	du := time.Since(*from)
+	sec := int(du.Seconds())
+	hrs := sec / 3600
+	mins := sec % 3600 / 60
+	sec = sec % 60
+	return fmt.Sprintf("%dh%dm%ds", hrs, mins, sec)
 }
 
 func ListenAndHandle(port string) error {
@@ -164,6 +202,11 @@ func handleNewConn(conn net.Conn) {
 
 	// 2. put the worker into the pool
 	index := strings.Split(worker.Username, ".")[1] + ":" + worker.Password
+
+	now := time.Now()
+	uptimes["W"+index] = &now
+	uptimeLock.Unlock()
+
 	globalLogger.Printf("WORKER[%s] registering...\n", index)
 	wPool.Put(index, worker)
 	status.addWorker()
@@ -201,7 +244,14 @@ func handleNewConn(conn net.Conn) {
 		// seperate the agent consumer
 		go func(agent *stratum.Agent, alias string) {
 			status.addAgent()
+			uptimeLock.Lock()
+			now := time.Now()
+			uptimes["A"+alias] = &now
+			uptimeLock.Unlock()
 			defer func() {
+				uptimeLock.Lock()
+				delete(uptimes, "A"+alias)
+				uptimeLock.Unlock()
 				status.subAgent()
 				globalLogger.Warnf("AGENT[%s] : Disconnected.\n", alias)
 			}()
@@ -258,6 +308,9 @@ func handleNewConn(conn net.Conn) {
 func pipe(agent *stratum.Agent, worker *stratum.Worker, alias string) {
 	// Any error leads to the destroy of worker
 	defer func() {
+		uptimeLock.Lock()
+		delete(uptimes, "W"+alias)
+		uptimeLock.Unlock()
 		wPool.Delete(alias)
 		worker.Destroy()
 		status.subWorker()
