@@ -6,6 +6,7 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"sync/atomic"
 )
 
 // Worker represents a miner to this proxy
@@ -14,6 +15,7 @@ type Worker struct {
 	Password  string
 	Destroyed bool
 
+	numOfSubmits uint64
 	closeLock    sync.Mutex
 	rwLock       sync.RWMutex
 	alias        string
@@ -48,6 +50,11 @@ func NewWorker(c net.Conn) (*Worker, error) {
 	w.alias = strings.Split(w.Username, ".")[1] + ":" + w.Password
 	go w.loop(ctx)
 	return w, nil
+}
+
+// ResetNumOfSubmits returns the num of submits and resets the counter
+func (w *Worker) ResetNumOfSubmits() uint64 {
+	return atomic.SwapUint64(&w.numOfSubmits, 0)
 }
 
 // Notify returns the channel you need to receive submits
@@ -186,13 +193,14 @@ func (w *Worker) loop(ctx context.Context) {
 				if diff < w.getWorkerDiff() {
 					// logger.Warnf("WORKER[%s] -- : Invalid share diff %.1f with target diff(%.1f).\n", w.alias, diff, w.targetDiff)
 					continue
-				} else if diff < w.getTargetDiff() {
-
 				} else {
+					atomic.AddUint64(&w.numOfSubmits, 1)
+					if diff >= w.getTargetDiff() {
 					logger.Debugf("WORKER[%s] -- : Share diff(%.1f) higher than target diff(%.1f), send it.\n", w.alias, diff, w.targetDiff)
 					w.notification <- request
 				}
 				w.ack(id, true)
+				}
 			default:
 				logger.Warnf("WORKER[%s] -- : I dont know how to deal with it, method(%s).\n", w.alias, request.Method)
 			}
