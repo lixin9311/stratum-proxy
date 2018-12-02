@@ -137,7 +137,7 @@ func startReportLoop(duration time.Duration) {
 			sort.Strings(akeys)
 			for _, alias := range akeys {
 				agent, _ := aPool.Get(alias)
-				worker, isOrphan := wPool.Get(alias)
+				worker, notOrphan := wPool.Get(alias)
 				var status string
 				if agent.IsDestroyed() {
 					status = "zombie"
@@ -150,7 +150,7 @@ func startReportLoop(duration time.Duration) {
 				uptimeLock.Lock()
 				aUptime := uptimes["A"+alias]
 				aUptimeStr := sinceFormat(aUptime)
-				if isOrphan {
+				if !notOrphan {
 					line = fmt.Sprintf("AGENT[%s]\t%.0f\t%s\torphan\t%s", alias, agent.GetTargetDiff(), status, aUptimeStr)
 				} else {
 					wUptime := uptimes["W"+alias]
