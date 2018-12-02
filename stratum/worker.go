@@ -126,6 +126,12 @@ func (w *Worker) getJob() *Job {
 	return w.currentJob.Copy()
 }
 
+func (w *Worker) getExtraNonce() string {
+	w.rwLock.RLock()
+	defer w.rwLock.RUnlock()
+	return w.extranonce
+}
+
 // SetExtranonce sets the extranonce.
 // Be aware, I here assumes the miner have the ability to receive extranonce update
 func (w *Worker) SetExtranonce(extranonce string, length int) error {
@@ -171,7 +177,7 @@ func (w *Worker) loop(ctx context.Context) {
 					continue
 				}
 				id := *request.ID
-				diff := getDiff(job, w.extranonce, request.Params)
+				diff := getDiff(job, w.getExtraNonce(), request.Params)
 				if diff < w.workerDiff {
 					// logger.Warnf("WORKER[%s] -- : Invalid share diff %.1f with target diff(%.1f).\n", w.alias, diff, w.targetDiff)
 					continue
