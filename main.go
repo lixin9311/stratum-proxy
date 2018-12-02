@@ -252,6 +252,7 @@ func handleNewConn(conn net.Conn) {
 			uptimes["A"+alias] = &now
 			uptimeLock.Unlock()
 			defer func() {
+				aPool.Delete(alias)
 				uptimeLock.Lock()
 				delete(uptimes, "A"+alias)
 				uptimeLock.Unlock()
@@ -265,7 +266,7 @@ func handleNewConn(conn net.Conn) {
 				notify, ok := <-notifyCh
 				if !ok {
 					// if this channel is closed, it's already destroyed
-					aPool.Delete(alias)
+					// the only exit
 					return
 				}
 				// 2. find the worker
@@ -284,14 +285,14 @@ func handleNewConn(conn net.Conn) {
 					if err := worker.SetExtranonce(en, l); err != nil {
 						wPool.Delete(alias)
 						worker.Destroy()
-						return
+						// return
 					}
 				case "mining.notify":
 					job := agent.GetJob()
 					if err := worker.SetJob(job); err != nil {
 						wPool.Delete(alias)
 						worker.Destroy()
-						return
+						// return
 					}
 				}
 
