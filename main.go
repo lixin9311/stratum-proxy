@@ -194,6 +194,9 @@ func ListenAndHandle(port string) error {
 	}
 }
 
+var initializingWorker = map[string]*sync.Mutex{}
+var initialLock = sync.Mutex{}
+
 func handleNewConn(conn net.Conn) {
 	// 1. initialize the worker
 	worker, err := stratum.NewWorker(conn)
@@ -204,15 +207,20 @@ func handleNewConn(conn net.Conn) {
 
 	// 2. put the worker into the pool
 	index := strings.Split(worker.Username, ".")[1] + ":" + worker.Password
+	initialLock.Lock()
+	ilock, ok := initializingWorker[index]
+	if !ok {
+		ilock = new(sync.Mutex)
+		initializingWorker[index] = ilock
+	}
+	initialLock.Unlock()
 
-	uptimeLock.Lock()
-	now := time.Now()
-	uptimes["W"+index] = &now
-	uptimeLock.Unlock()
+	// Lock until the agent is found or initialized
+	// to ensure 1 worker only has 1 agent
+	ilock.Lock()
 
 	logger.Infof("WORKER[%s] registering...\n", index)
 	wPool.Put(index, worker)
-	status.addWorker()
 
 	// 3. find or create correspoding agent
 	agent, ok := aPool.Get(index)
@@ -298,18 +306,22 @@ func handleNewConn(conn net.Conn) {
 
 			}
 		}(agent, index)
-
 		aPool.Put(index, agent)
 	} else {
 		logger.Infof("AGENT[%s] found, reunsing.\n", index)
 	}
-
+	ilock.Unlock()
 	// 4. pipe the agent and worker
 	pipe(agent, worker, index)
 }
 
 // pipe the date, the death of any worker will lead to the return of this function
 func pipe(agent *stratum.Agent, worker *stratum.Worker, alias string) {
+	status.addWorker()
+	uptimeLock.Lock()
+	now := time.Now()
+	uptimes["W"+alias] = &now
+	uptimeLock.Unlock()
 	// Any error leads to the destroy of worker
 	defer func() {
 		uptimeLock.Lock()
