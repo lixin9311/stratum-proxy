@@ -75,11 +75,12 @@ func (w *Worker) write(v interface{}) error {
 func (w *Worker) Destroy() {
 	w.closeLock.Lock()
 	defer w.closeLock.Unlock()
-	w.cancel()
-	w.conn.Close()
+	// avoid closing a closed channel
 	if !w.Destroyed {
-		close(w.notification)
 		w.Destroyed = true
+		w.cancel()
+		w.conn.Close()
+		close(w.notification)
 	}
 	logger.Debugf("WORKER[%s] -- : Destroyed\n", w.alias)
 }

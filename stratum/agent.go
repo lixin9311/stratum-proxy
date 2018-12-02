@@ -35,6 +35,8 @@ type Agent struct {
 	currentJob       *Job
 	destroyed        bool
 	rwLock           sync.RWMutex
+	selfDestroyTimer *time.Timer
+	writeLock        sync.Mutex
 	alias            string
 	dec              *json.Decoder
 	enc              *json.Encoder
@@ -51,15 +53,19 @@ type Agent struct {
 func (agent *Agent) Destroy() {
 	agent.Lock()
 	defer agent.Unlock()
-	agent.cancel()
-	agent.conn.Close()
-	logger.Debugf("AGENT[%s] -- : Destroyed\n", agent.alias)
+	// avoid closing a closed channel
 	if !agent.destroyed {
-		close(agent.notification)
 		agent.destroyed = true
+		agent.selfDestroyTimer.Stop()
+		agent.cancel()
+		agent.conn.Close()
+		close(agent.notification)
+
+		logger.Debugf("AGENT[%s] -- : Destroyed\n", agent.alias)
 	}
 }
 
+// IsDestroyed returns true is the agens has already been destroyed
 func (agent *Agent) IsDestroyed() bool {
 	agent.Lock()
 	defer agent.Unlock()
@@ -215,6 +221,9 @@ func (agent *Agent) getResp(id uint64) (*Response, error) {
 }
 
 func (agent *Agent) write(v interface{}) error {
+	agent.writeLock.Lock()
+	defer agent.writeLock.Unlock()
+	agent.selfDestroyTimer.Reset(agent.conf.AgentTimeout)
 	agent.conn.SetWriteDeadline(time.Now().Add(agent.conf.ConnTimeout))
 	b, _ := json.Marshal(v)
 	logger.Debugf("AGENT[%s] -> : \"%s\"\n", agent.alias, b)
@@ -286,6 +295,7 @@ func NewAgent(conf *AgentConfig) (*Agent, error) {
 	agent.alias = strings.Split(conf.Username, ".")[1] + ":" + conf.Password
 	agent.notification = make(chan *Request, 10)
 	agent.respNotification = map[uint64](chan *Response){}
+	agent.selfDestroyTimer = time.AfterFunc(conf.AgentTimeout, agent.Destroy)
 
 	// connection
 	conn, err := net.DialTimeout("tcp4", agent.conf.Upstream, agent.conf.ConnTimeout)
