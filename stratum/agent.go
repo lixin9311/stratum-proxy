@@ -343,6 +343,17 @@ func (p *AgentPool) Delete(key string) {
 	delete(p.data, key)
 }
 
+// Keys returns an array of the keys
+func (p *AgentPool) Keys() []string {
+	p.Lock()
+	defer p.Unlock()
+	result := make([]string, 0, len(p.data))
+	for k := range p.data {
+		result = append(result, k)
+	}
+	return result
+}
+
 // NewAgentPool creates and initializes a new AgentPool
 func NewAgentPool() *AgentPool {
 	pool := new(AgentPool)

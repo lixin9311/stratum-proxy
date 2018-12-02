@@ -260,6 +260,17 @@ func (p *WorkerPool) Delete(key string) {
 	delete(p.data, key)
 }
 
+// Keys returns an array of the keys
+func (p *WorkerPool) Keys() []string {
+	p.Lock()
+	defer p.Unlock()
+	result := make([]string, 0, len(p.data))
+	for k := range p.data {
+		result = append(result, k)
+	}
+	return result
+}
+
 // NewWorkerPool creates and initializes a new WorkerPool
 func NewWorkerPool() *WorkerPool {
 	pool := new(WorkerPool)
