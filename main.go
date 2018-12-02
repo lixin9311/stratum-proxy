@@ -70,6 +70,12 @@ func (s *stat) addSubmit() {
 	s.numOfSubmits++
 }
 
+func (s *stat) clearSubmit() {
+	s.Lock()
+	defer s.Unlock()
+	s.numOfSubmits = 0
+}
+
 func main() {
 	// test()
 	configPath := flag.String("c", "config.yaml", "Config file")
@@ -119,6 +125,7 @@ func main() {
 
 func printReport() {
 	numOfWorker, numOfAgent, numOfSubmits := status.Data()
+	status.clearSubmit()
 	globalLogger.Println("AgentName:\t\t", globalConfig.AgentName)
 	globalLogger.Println("Upstream:\t\t", globalConfig.Upstream)
 	globalLogger.Println("WorkerDiff:\t\t", globalConfig.WorkerDifficulty)
@@ -127,7 +134,7 @@ func printReport() {
 	globalLogger.Println("ConnTimeout:\t\t", globalConfig.ConnTimeout)
 	globalLogger.Println("Worker Alive:\t", numOfWorker)
 	globalLogger.Println("Agent Alice:\t\t", numOfAgent)
-	globalLogger.Println("Num Of Submits:\t", numOfSubmits)
+	globalLogger.Println("Submits in 1min:\t", numOfSubmits)
 }
 
 func ListenAndHandle(port string) error {
