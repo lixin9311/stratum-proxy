@@ -179,7 +179,7 @@ func (w *Worker) loop(ctx context.Context) {
 		default:
 			request := new(Request)
 			if err := w.read(request); err != nil {
-				logger.Warnf("WORKER[%s]: Disconnected, %v\n", err)
+				logger.Warnf("WORKER[%s]: Disconnected, %v\n", w.alias, err)
 				return
 			}
 			switch request.Method {
