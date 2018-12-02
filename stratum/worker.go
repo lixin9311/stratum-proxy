@@ -2,11 +2,12 @@ package stratum
 
 import (
 	"context"
-	"encoding/json"
 	"net"
 	"strings"
 	"sync"
 	"sync/atomic"
+
+	"github.com/json-iterator/go"
 )
 
 // Worker represents a miner to this proxy
@@ -16,8 +17,8 @@ type Worker struct {
 	Password string
 
 	isDestroyed  bool
-	dec          *json.Decoder
-	enc          *json.Encoder
+	dec          *jsoniter.Decoder
+	enc          *jsoniter.Encoder
 	conn         net.Conn
 	numOfSubmits uint64
 	closeLock    sync.Mutex
@@ -164,7 +165,7 @@ func (w *Worker) ack(id uint64, ok bool) error {
 	}
 	resp := new(Response)
 	resp.ID = id
-	result := json.RawMessage([]byte(str))
+	result := jsoniter.RawMessage([]byte(str))
 	resp.Result = &result
 	return w.write(resp)
 }
@@ -218,7 +219,7 @@ func (w *Worker) handshake() error {
 	// reply subid nonce nonce lenght
 	resp := new(Response)
 	resp.ID = *subReq.ID
-	result := json.RawMessage([]byte(`[["mining.notify","stub"],"ab",3]`))
+	result := jsoniter.RawMessage([]byte(`[["mining.notify","stub"],"ab",3]`))
 	resp.Result = &result
 	if err := w.write(resp); err != nil {
 		return err
