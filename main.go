@@ -205,6 +205,7 @@ func handleNewConn(conn net.Conn) {
 	// 2. put the worker into the pool
 	index := strings.Split(worker.Username, ".")[1] + ":" + worker.Password
 
+	uptimeLock.Lock()
 	now := time.Now()
 	uptimes["W"+index] = &now
 	uptimeLock.Unlock()
