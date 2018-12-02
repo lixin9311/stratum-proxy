@@ -174,7 +174,6 @@ func handleNewConn(conn net.Conn) {
 		globalLogger.Printf("AGENT[%s] found, creating new one...\n", index)
 		agentConf := &stratum.AgentConfig{
 			Name:         globalConfig.AgentName,
-			Diff:         globalConfig.WorkerDifficulty,
 			Username:     worker.Username,
 			Password:     worker.Password,
 			Upstream:     globalConfig.Upstream,

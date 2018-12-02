@@ -14,7 +14,6 @@ import (
 // AgentConfig is used to create a new Agent
 type AgentConfig struct {
 	Name         string
-	Diff         float64
 	Username     string
 	Password     string
 	Upstream     string
