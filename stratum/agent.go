@@ -65,7 +65,7 @@ func (agent *Agent) Destroy() {
 		agent.conn.Close()
 		close(agent.notification)
 
-		logger.Debugf("AGENT[%s] -- : Destroyed\n", agent.alias)
+		logger.Debugf("AGENT[%s]: Destroyed\n", agent.alias)
 	}
 }
 
@@ -110,7 +110,7 @@ func (agent *Agent) Notify() chan *Request {
 
 func (agent *Agent) loop(ctx context.Context) {
 	defer agent.Destroy()
-	defer logger.Debugf("AGENT[%s] -- : Exit agent loop\n", agent.alias)
+	defer logger.Debugf("AGENT[%s]: Exit loop\n", agent.alias)
 	for {
 		select {
 		case <-ctx.Done():
@@ -118,7 +118,7 @@ func (agent *Agent) loop(ctx context.Context) {
 		default:
 			tmpMsg := new(jsoniter.RawMessage)
 			if err := agent.read(tmpMsg); err != nil {
-				logger.Warnf("AGENT[%s] -- : Agent loop crashed: %v\n", agent.alias, err)
+				logger.Warnf("AGENT[%s]: Disconnected, %v\n", agent.alias, err)
 				return
 			}
 			logger.Debugf("AGENT[%s] <- : \"%s\"\n", agent.alias, *tmpMsg)
@@ -127,12 +127,12 @@ func (agent *Agent) loop(ctx context.Context) {
 				// request
 				req := new(Request)
 				if err := json.Unmarshal(*tmpMsg, req); err != nil {
-					logger.Errorf("AGENT[%s] -- : Failed to unmarshal incoming request: %v\n", agent.alias, err)
+					logger.Errorf("AGENT[%s]: Failed to unmarshal incoming request: %v\n", agent.alias, err)
 					continue
 				}
 				switch req.Method {
 				case "mining.set_difficulty":
-					logger.Infof("AGENT[%s] -- : Set target difficulty to %.0f\n", agent.alias, req.Params[0].(float64))
+					logger.Debugf("AGENT[%s]: Set target difficulty to %.0f\n", agent.alias, req.Params[0].(float64))
 					agent.rwLock.Lock()
 					agent.targetDiff = req.Params[0].(float64)
 					agent.rwLock.Unlock()
@@ -144,7 +144,7 @@ func (agent *Agent) loop(ctx context.Context) {
 				case "mining.notify":
 					job, err := NewJobFromArray(req.Params)
 					if err != nil || job == nil {
-						logger.Errorf("AGENT[%s] -- : Failed to parse Job: %v\n", agent.alias, err)
+						logger.Errorf("AGENT[%s]: Failed to parse Job: %v\n", agent.alias, err)
 						continue
 					} else {
 						agent.rwLock.Lock()
@@ -152,7 +152,7 @@ func (agent *Agent) loop(ctx context.Context) {
 						agent.rwLock.Unlock()
 					}
 				default:
-					logger.Warnf("AGENT[%s] -- : dont know how to process method(%s)\n", agent.alias, req.Method)
+					logger.Warnf("AGENT[%s]: dont know how to process method(%s)\n", agent.alias, req.Method)
 				}
 				// no relay design
 				agent.notification <- req
@@ -161,7 +161,7 @@ func (agent *Agent) loop(ctx context.Context) {
 				// response
 				resp := new(Response)
 				if err := json.Unmarshal(*tmpMsg, resp); err != nil {
-					logger.Errorf("AGENT[%s] -- : Failed to unmarshal incoming response: %v\n", agent.alias, err)
+					logger.Errorf("AGENT[%s]: Failed to unmarshal incoming response: %v\n", agent.alias, err)
 					continue
 				}
 				agent.Lock()

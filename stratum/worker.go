@@ -91,7 +91,7 @@ func (w *Worker) Destroy() {
 		w.conn.Close()
 		close(w.notification)
 	}
-	logger.Debugf("WORKER[%s] -- : Destroyed\n", w.alias)
+	logger.Debugf("WORKER[%s]: Destroyed\n", w.alias)
 }
 
 // SetWorkerDifficulty sets the difficulty for the real miner
@@ -180,6 +180,7 @@ func (w *Worker) loop(ctx context.Context) {
 		default:
 			request := new(Request)
 			if err := w.read(request); err != nil {
+				logger.Warnf("WORKER[%s]: Disconnected, %v\n", err)
 				return
 			}
 			switch request.Method {
@@ -193,18 +194,26 @@ func (w *Worker) loop(ctx context.Context) {
 				id := *request.ID
 				diff := getDiff(job, w.getExtraNonce(), request.Params)
 				if diff < w.getWorkerDiff() {
-					// logger.Warnf("WORKER[%s] -- : Invalid share diff %.1f with target diff(%.1f).\n", w.alias, diff, w.targetDiff)
+					logger.Debugf("WORKER[%s]: Invalid share diff %.1f with target diff(%.1f).\n", w.alias, diff, w.targetDiff)
 					continue
 				} else {
 					atomic.AddUint64(&w.numOfSubmits, 1)
 					if diff >= w.getTargetDiff() {
-						logger.Debugf("WORKER[%s] -- : Share diff(%.1f) higher than target diff(%.1f), send it.\n", w.alias, diff, w.targetDiff)
+						logger.Debugf("WORKER[%s]: Share diff(%.1f) higher than target diff(%.1f), send it.\n", w.alias, diff, w.targetDiff)
 						w.notification <- request
 					}
-					w.ack(id, true)
+					if err := w.ack(id, true); err != nil {
+						logger.Errorf("WORKER[%s]: Failed to ack msg[%d:mining.submit], %v\n", id, err)
+					}
 				}
+			case "mining.extranonce.subscribe":
+				id := *request.ID
+				if err := w.ack(id, true); err != nil {
+					logger.Errorf("WORKER[%s]: Failed to ack msg[%d:mining.extranonce.subscribe], %v\n", id, err)
+				}
+				return
 			default:
-				logger.Warnf("WORKER[%s] -- : I dont know how to deal with it, method(%s).\n", w.alias, request.Method)
+				logger.Warnf("WORKER[%s]: I dont know how to deal with it, method(%s).\n", w.alias, request.Method)
 			}
 		}
 	}
