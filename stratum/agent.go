@@ -93,9 +93,8 @@ func (agent *Agent) GetExtraNonce() (extranonce string, length int) {
 // GetTargetDiff returns target difficulty
 func (agent *Agent) GetTargetDiff() float64 {
 	agent.rwLock.RLock()
-	diff := agent.targetDiff
-	agent.rwLock.RUnlock()
-	return diff
+	defer agent.rwLock.RUnlock()
+	return agent.targetDiff
 }
 
 // Notify returns the channel needed to receive notifications from the upstream

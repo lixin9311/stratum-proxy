@@ -112,7 +112,7 @@ func (w *Worker) SetTargetDifficulty(diff float64) {
 // SetJob gives the Worker a Job
 func (w *Worker) SetJob(job *Job) error {
 	w.rwLock.Lock()
-	w.currentJob = job.Copy()
+	w.currentJob = job
 	w.rwLock.Unlock()
 	req := NewRequest(nil, "mining.notify", job.ToArray()...)
 	return w.write(req)
@@ -192,13 +192,15 @@ func (w *Worker) loop(ctx context.Context) {
 				}
 				id := *request.ID
 				diff := getDiff(job, w.getExtraNonce(), request.Params)
-				if diff < w.getWorkerDiff() {
-					logger.Debugf("WORKER[%s]: Invalid share diff %.1f with target diff(%.1f).\n", w.alias, diff, w.targetDiff)
+				workerDiff := w.getWorkerDiff()
+				targetDiff := w.getTargetDiff()
+				if diff < workerDiff {
+					logger.Debugf("WORKER[%s]: Invalid share diff %.1f with the request diff %.1f.\n", w.alias, diff, workerDiff)
 					continue
 				} else {
 					atomic.AddUint64(&w.numOfSubmits, 1)
-					if diff >= w.getTargetDiff() {
-						logger.Debugf("WORKER[%s]: Share diff(%.1f) higher than target diff(%.1f), send it.\n", w.alias, diff, w.targetDiff)
+					if diff >= targetDiff {
+						logger.Debugf("WORKER[%s]: Share diff(%.1f) higher than target diff(%.1f), send it.\n", w.alias, diff, targetDiff)
 						w.notification <- request
 					}
 					if err := w.ack(id, true); err != nil {
