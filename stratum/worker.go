@@ -112,9 +112,14 @@ func (w *Worker) SetJob(job *Job) error {
 
 func (w *Worker) getTargetDiff() float64 {
 	w.rwLock.RLock()
-	diff := w.targetDiff
-	w.rwLock.RUnlock()
-	return diff
+	defer w.rwLock.RUnlock()
+	return w.targetDiff
+}
+
+func (w *Worker) getWorkerDiff() float64 {
+	w.rwLock.RLock()
+	defer w.rwLock.RUnlock()
+	return w.workerDiff
 }
 
 func (w *Worker) getJob() *Job {
@@ -178,7 +183,7 @@ func (w *Worker) loop(ctx context.Context) {
 				}
 				id := *request.ID
 				diff := getDiff(job, w.getExtraNonce(), request.Params)
-				if diff < w.workerDiff {
+				if diff < w.getWorkerDiff() {
 					// logger.Warnf("WORKER[%s] -- : Invalid share diff %.1f with target diff(%.1f).\n", w.alias, diff, w.targetDiff)
 					continue
 				} else if diff < w.getTargetDiff() {
