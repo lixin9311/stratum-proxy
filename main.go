@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	_ "net/http/pprof"
@@ -23,7 +24,51 @@ var (
 	globalLogger = logrus.StandardLogger()
 	wPool        = stratum.NewWorkerPool()
 	aPool        = stratum.NewAgentPool()
+	status       = new(stat)
 )
+
+type stat struct {
+	sync.Mutex
+	numOfWorker  int
+	numOfAgent   int
+	numOfSubmits int
+}
+
+func (s *stat) Data() (numOfWorker, numOfAgent, numOfSubmits int) {
+	s.Lock()
+	defer s.Unlock()
+	return s.numOfWorker, s.numOfAgent, s.numOfSubmits
+}
+
+func (s *stat) addWorker() {
+	s.Lock()
+	defer s.Unlock()
+	s.numOfWorker++
+}
+
+func (s *stat) addAgent() {
+	s.Lock()
+	defer s.Unlock()
+	s.numOfAgent++
+}
+
+func (s *stat) subWorker() {
+	s.Lock()
+	defer s.Unlock()
+	s.numOfWorker--
+}
+
+func (s *stat) subAgent() {
+	s.Lock()
+	defer s.Unlock()
+	s.numOfAgent--
+}
+
+func (s *stat) addSubmit() {
+	s.Lock()
+	defer s.Unlock()
+	s.numOfSubmits++
+}
 
 func main() {
 	// test()
@@ -62,7 +107,27 @@ func main() {
 	globalLogger.Println("AgentTimeout:\t", globalConfig.AgentTimeout)
 	globalLogger.Println("ConnTimeout:\t\t", globalConfig.ConnTimeout)
 	stratum.SetLogger(globalLogger)
+	go func() {
+		for {
+			time.Sleep(time.Minute)
+			printReport()
+		}
+
+	}()
 	log.Println(ListenAndHandle(*listenPort))
+}
+
+func printReport() {
+	numOfWorker, numOfAgent, numOfSubmits := status.Data()
+	globalLogger.Println("AgentName:\t\t", globalConfig.AgentName)
+	globalLogger.Println("Upstream:\t\t", globalConfig.Upstream)
+	globalLogger.Println("WorkerDiff:\t\t", globalConfig.WorkerDifficulty)
+	globalLogger.Println("DebugLevel:\t\t", globalConfig.DebugLevel)
+	globalLogger.Println("AgentTimeout:\t", globalConfig.AgentTimeout)
+	globalLogger.Println("ConnTimeout:\t\t", globalConfig.ConnTimeout)
+	globalLogger.Println("Worker Alive:\t", numOfWorker)
+	globalLogger.Println("Agent Alice:\t\t", numOfAgent)
+	globalLogger.Println("Num Of Submits:\t", numOfSubmits)
 }
 
 func ListenAndHandle(port string) error {
@@ -92,13 +157,14 @@ func handleNewConn(conn net.Conn) {
 
 	// 2. put the worker into the pool
 	index := strings.Split(worker.Username, ".")[1] + ":" + worker.Password
-	globalLogger.Println("New worker registering: ", index)
+	globalLogger.Printf("WORKER[%s] registering...\n", index)
 	wPool.Put(index, worker)
+	status.addWorker()
 
 	// 3. find or create correspoding agent
 	agent, ok := aPool.Get(index)
 	if !ok || agent.IsDestroyed() {
-		globalLogger.Println("No agent found, creating new one...")
+		globalLogger.Printf("AGENT[%s] found, creating new one...\n", index)
 		agentConf := &stratum.AgentConfig{
 			Name:         globalConfig.AgentName,
 			Diff:         globalConfig.WorkerDifficulty,
@@ -111,7 +177,7 @@ func handleNewConn(conn net.Conn) {
 		for i := 0; i < 10; i++ {
 			agent, err = stratum.NewAgent(agentConf)
 			if err != nil {
-				globalLogger.Errorln("Failed to create new agent, retry after 10s...")
+				globalLogger.Errorf("Failed to create new AGENT[%s], retry after 10s...\n", index)
 				time.Sleep(10 * time.Second)
 				continue
 			}
@@ -119,25 +185,79 @@ func handleNewConn(conn net.Conn) {
 		}
 
 		if err != nil {
-			globalLogger.Errorln("Failed to create new agent, after 10 retries...")
-			wPool.Delete(index)
+			globalLogger.Errorf("Failed to create new AGENT[%s] after 10 retries... Disconnecting the worker...\n", index)
 			worker.Destroy()
+			wPool.Delete(index)
 			return
 		}
 
+		// successful
+		// seperate the agent consumer
+		go func(agent *stratum.Agent, alias string) {
+			status.addAgent()
+			defer func() {
+				status.subAgent()
+				globalLogger.Warnf("AGENT[%s] : Disconnected.\n", alias)
+			}()
+
+			notifyCh := agent.Notify()
+			for {
+				// 1. receive nitification from the upstream
+				notify, ok := <-notifyCh
+				if !ok {
+					// if this channel is closed, it's already destroyed
+					aPool.Delete(alias)
+					return
+				}
+				// 2. find the worker
+				worker, ok := wPool.Get(alias)
+				if !ok {
+					globalLogger.Printf("AGENT[%s]: There is no worker for now.\n", alias)
+					continue
+				}
+				// 3. if there is a worker
+				// any error represents the worker might be dead
+				switch notify.Method {
+				case "mining.set_difficulty":
+					worker.SetTargetDifficulty(agent.GetTargetDiff())
+				case "mining.set_extranonce":
+					en, l := agent.GetExtraNonce()
+					if err := worker.SetExtranonce(en, l); err != nil {
+						wPool.Delete(alias)
+						worker.Destroy()
+						return
+					}
+				case "mining.notify":
+					job := agent.GetJob()
+					if err := worker.SetJob(job); err != nil {
+						wPool.Delete(alias)
+						worker.Destroy()
+						return
+					}
+				}
+
+			}
+		}(agent, index)
+
 		aPool.Put(index, agent)
 	} else {
-		globalLogger.Println("Existing agent found")
+		globalLogger.Printf("AGENT[%s] found, reunsing.\n", index)
 	}
 
 	// 4. pipe the agent and worker
 	pipe(agent, worker, index)
 }
 
-// TODO: apply agent timeout
+// pipe the date, the death of any worker will lead to the return of this function
 func pipe(agent *stratum.Agent, worker *stratum.Worker, alias string) {
-	defer wPool.Delete(alias)
-	defer worker.Destroy()
+	// Any error leads to the destroy of worker
+	defer func() {
+		wPool.Delete(alias)
+		worker.Destroy()
+		status.subWorker()
+		globalLogger.Warnf("WORKER[%s]: Disconnected.\n", alias)
+	}()
+
 	// some initialization works left for worker
 	// 1. set difficulty
 	if err := worker.SetWorkerDifficulty(globalConfig.WorkerDifficulty); err != nil {
@@ -164,42 +284,19 @@ func pipe(agent *stratum.Agent, worker *stratum.Worker, alias string) {
 
 	// 4. start the pipeline
 	submitCh := worker.Notify()
-	notifyCh := agent.Notify()
 
-	// TODO: if the worker is offline, avoid some error
-	go func() {
-		for {
-			notify, ok := <-notifyCh
-			if !ok {
-				return
-			}
-			switch notify.Method {
-			case "mining.set_difficulty":
-				worker.SetTargetDifficulty(agent.GetTargetDiff())
-			case "mining.set_extranonce":
-				en, l := agent.GetExtraNonce()
-				if err := worker.SetExtranonce(en, l); err != nil {
-					return
-				}
-			case "mining.notify":
-				job := agent.GetJob()
-				if err := worker.SetJob(job); err != nil {
-					return
-				}
-			}
-		}
-	}()
-
+	// read from worker
 	for {
 		submit, ok := <-submitCh
-		if !ok {
+		// worker or agent is destroyed
+		if !ok || agent.IsDestroyed() {
 			return
 		}
 		if err := agent.WriteRequstRewriteID(submit); err != nil {
 			globalLogger.Errorf("PIPE[%s] : Failed to submit share to upstream: %v", alias, err)
-			agent.Destroy()
 			return
 		}
+		status.addSubmit()
 	}
 
 }
