@@ -1,8 +1,9 @@
 package stratum
 
 import (
-	"encoding/json"
 	"fmt"
+
+	"github.com/json-iterator/go"
 )
 
 // Request :
@@ -26,9 +27,9 @@ func NewRequest(id *uint64, method string, params ...interface{}) *Request {
 //    * error - null or list (error code, error message)
 // Notification is like Request, but it does not expect any response and message ID is always null
 type Response struct {
-	ID     uint64           `json:"id"`
-	Result *json.RawMessage `json:"result"`
-	Error  []interface{}    `json:"error"`
+	ID     uint64               `json:"id"`
+	Result *jsoniter.RawMessage `json:"result"`
+	Error  []interface{}        `json:"error"`
 }
 
 type subscribeResult struct {
