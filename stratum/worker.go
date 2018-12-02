@@ -11,17 +11,18 @@ import (
 
 // Worker represents a miner to this proxy
 type Worker struct {
-	Username  string
-	Password  string
-	Destroyed bool
+	// they won't change after handshake
+	Username string
+	Password string
 
+	isDestroyed  bool
+	dec          *json.Decoder
+	enc          *json.Encoder
+	conn         net.Conn
 	numOfSubmits uint64
 	closeLock    sync.Mutex
 	rwLock       sync.RWMutex
 	alias        string
-	dec          *json.Decoder
-	enc          *json.Encoder
-	conn         net.Conn
 	extranonce   string
 	workerDiff   float64
 	targetDiff   float64
@@ -83,8 +84,8 @@ func (w *Worker) Destroy() {
 	w.closeLock.Lock()
 	defer w.closeLock.Unlock()
 	// avoid closing a closed channel
-	if !w.Destroyed {
-		w.Destroyed = true
+	if !w.isDestroyed {
+		w.isDestroyed = true
 		w.cancel()
 		w.conn.Close()
 		close(w.notification)
@@ -196,10 +197,10 @@ func (w *Worker) loop(ctx context.Context) {
 				} else {
 					atomic.AddUint64(&w.numOfSubmits, 1)
 					if diff >= w.getTargetDiff() {
-					logger.Debugf("WORKER[%s] -- : Share diff(%.1f) higher than target diff(%.1f), send it.\n", w.alias, diff, w.targetDiff)
-					w.notification <- request
-				}
-				w.ack(id, true)
+						logger.Debugf("WORKER[%s] -- : Share diff(%.1f) higher than target diff(%.1f), send it.\n", w.alias, diff, w.targetDiff)
+						w.notification <- request
+					}
+					w.ack(id, true)
 				}
 			default:
 				logger.Warnf("WORKER[%s] -- : I dont know how to deal with it, method(%s).\n", w.alias, request.Method)
