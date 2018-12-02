@@ -173,7 +173,7 @@ func (w *Worker) loop(ctx context.Context) {
 				id := *request.ID
 				diff := getDiff(job, w.extranonce, request.Params)
 				if diff < w.workerDiff {
-					logger.Warnf("WORKER[%s] -- : Invalid share diff %.1f with target diff(%.1f).\n", w.alias, diff, w.targetDiff)
+					// logger.Warnf("WORKER[%s] -- : Invalid share diff %.1f with target diff(%.1f).\n", w.alias, diff, w.targetDiff)
 					continue
 				} else if diff < w.getTargetDiff() {
 
