@@ -1,0 +1,79 @@
+{
+	"comment": "",
+	"ignore": "test",
+	"package": [
+		{
+			"checksumSHA1": "HkZUgiSWtqvkR1SAIesyTtXmxUo=",
+			"path": "github.com/Sirupsen/logrus",
+			"revision": "29d7eb25e8ffa54207ff5a9a5c3d63e95be2cc39",
+			"revisionTime": "2018-11-22T06:14:47Z"
+		},
+		{
+			"checksumSHA1": "pELHszuriPJpPA23bFwk6XmA4h8=",
+			"path": "github.com/aead/skein",
+			"revision": "9365ae6e95d294dc113a0b308852f97c916db233",
+			"revisionTime": "2016-07-22T08:48:37Z"
+		},
+		{
+			"checksumSHA1": "TNTDdluUyX5oAB0DDehow194Qbo=",
+			"path": "github.com/aead/skein/threefish",
+			"revision": "9365ae6e95d294dc113a0b308852f97c916db233",
+			"revisionTime": "2016-07-22T08:48:37Z"
+		},
+		{
+			"checksumSHA1": "P/p+X9Ds7j6VFI6a33CScrw8C0k=",
+			"path": "github.com/bitgoin/lyra2rev2",
+			"revision": "bae9ad2043bb55facb14c4918e909f88a7d3ed84",
+			"revisionTime": "2016-12-12T10:20:46Z"
+		},
+		{
+			"checksumSHA1": "u3eKjo4QH4tysFtQyAtDS354+Z0=",
+			"path": "github.com/bitgoin/lyra2rev2/sha3",
+			"revision": "bae9ad2043bb55facb14c4918e909f88a7d3ed84",
+			"revisionTime": "2016-12-12T10:20:46Z"
+		},
+		{
+			"checksumSHA1": "Q5YN3JDk0g8zt0gZulGLn+uFC30=",
+			"path": "github.com/dchest/blake256",
+			"revision": "dee3fe6eb0e98dc774a94fc231f85baf7c29d360",
+			"revisionTime": "2015-09-03T10:16:04Z"
+		},
+		{
+			"checksumSHA1": "7NP1qUMF8Kx1y0zANxx0e+oq9Oo=",
+			"path": "github.com/fsnotify/fsnotify",
+			"revision": "ccc981bf80385c528a65fbfdd49bf2d8da22aa23",
+			"revisionTime": "2018-08-30T22:02:26Z"
+		},
+		{
+			"checksumSHA1": "r6ZMyP/HsdeToXIxvgP3ntL6Bds=",
+			"path": "github.com/konsorten/go-windows-terminal-sequences",
+			"revision": "5c8c8bd35d3832f5d134ae1e1e375b69a4d25242",
+			"revisionTime": "2018-10-04T22:41:46Z"
+		},
+		{
+			"checksumSHA1": "BSPDVKviqHQaG2phOFN690zAKB8=",
+			"path": "golang.org/x/crypto/ssh/terminal",
+			"revision": "eb0de9b17e854e9b1ccd9963efafc79862359959",
+			"revisionTime": "2018-11-27T08:28:20Z"
+		},
+		{
+			"checksumSHA1": "DgVXiDZy1nRegnkhWu1EAyQWhQ8=",
+			"path": "golang.org/x/sys/unix",
+			"revision": "4ed8d59d0b35e1e29334a206d1b3f38b1e5dfb31",
+			"revisionTime": "2018-11-19T12:01:13Z"
+		},
+		{
+			"checksumSHA1": "Y7nctMxT58lRM78VtElPerhcnEs=",
+			"path": "golang.org/x/sys/windows",
+			"revision": "4ed8d59d0b35e1e29334a206d1b3f38b1e5dfb31",
+			"revisionTime": "2018-11-19T12:01:13Z"
+		},
+		{
+			"checksumSHA1": "QqDq2x8XOU7IoOR98Cx1eiV5QY8=",
+			"path": "gopkg.in/yaml.v2",
+			"revision": "51d6538a90f86fe93ac480b35f37b2be17fef232",
+			"revisionTime": "2018-11-15T11:05:04Z"
+		}
+	],
+	"rootPath": "dayun/stratum-proxy"
+}
