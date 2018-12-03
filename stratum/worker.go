@@ -7,7 +7,14 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 )
+
+// WorkerConfig is used to create a new worker
+type WorkerConfig struct {
+	WorkerTimeout time.Duration
+	ConnTimeout   time.Duration
+}
 
 // Worker represents a miner to this proxy
 type Worker struct {
@@ -15,6 +22,8 @@ type Worker struct {
 	Username string
 	Password string
 
+	// conf is not thread-safe yet
+	conf         *WorkerConfig
 	connLock     sync.Mutex
 	isDestroyed  bool
 	dec          *json.Decoder
@@ -37,9 +46,10 @@ type Worker struct {
 //    1. set difficulty
 //    2. set extranonce
 //    3. set job
-func NewWorker(c net.Conn) (*Worker, error) {
+func NewWorker(c net.Conn, conf *WorkerConfig) (*Worker, error) {
 	w := new(Worker)
 	w.conn = c
+	w.conf = conf
 	w.enc = json.NewEncoder(w.conn)
 	w.dec = json.NewDecoder(w.conn)
 	w.notification = make(chan *Request, 10)
@@ -65,6 +75,7 @@ func (w *Worker) Notify() chan *Request {
 }
 
 func (w *Worker) read(v interface{}) error {
+	w.conn.SetReadDeadline(time.Now().Add(w.conf.WorkerTimeout))
 	if err := w.dec.Decode(v); err != nil {
 		logger.Debugf("WORKER[%s] -> : Failed to receive msg, \"%v\"\n", w.alias, err)
 		return err
@@ -79,6 +90,7 @@ func (w *Worker) write(v interface{}) error {
 	defer w.connLock.Unlock()
 	b, _ := json.Marshal(v)
 	logger.Debugf("WORKER[%s] <- : \"%s\"\n", w.alias, b)
+	w.conn.SetWriteDeadline(time.Now().Add(w.conf.ConnTimeout))
 	return w.enc.Encode(v)
 }
 

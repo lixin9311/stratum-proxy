@@ -18,6 +18,7 @@ import (
 // WorkerDifficulty: 64
 // DebugLevel: 5
 // AgentTimeout: 30m
+// WorkerTimeout: 1m
 // ConnTimeout: 10s
 
 type Config struct {
@@ -26,6 +27,7 @@ type Config struct {
 	WorkerDifficulty float64       `yaml:"WorkerDifficulty"`
 	DebugLevel       int           `yaml:"DebugLevel"`
 	AgentTimeout     time.Duration `yaml:"AgentTimeout"`
+	WorkerTimeout    time.Duration `yaml:"WorkerTimeout"`
 	ConnTimeout      time.Duration `yaml:"ConnTimeout"`
 }
 
@@ -53,6 +55,9 @@ func CheckConfig(conf *Config) error {
 	}
 	if conf.AgentTimeout < 0 {
 		return fmt.Errorf("Invalid AgentTimeout(%v)", conf.AgentTimeout)
+	}
+	if conf.WorkerTimeout < 0 {
+		return fmt.Errorf("Invalid WorkerTimeout(%v)", conf.WorkerTimeout)
 	}
 	if conf.ConnTimeout < 0 {
 		return fmt.Errorf("Invalid ConnTimeout(%v)", conf.ConnTimeout)

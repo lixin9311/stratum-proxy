@@ -199,7 +199,7 @@ var initialLock = sync.Mutex{}
 
 func handleNewConn(conn net.Conn) {
 	// 1. initialize the worker
-	worker, err := stratum.NewWorker(conn)
+	worker, err := stratum.NewWorker(conn, &stratum.WorkerConfig{WorkerTimeout: globalConfig.WorkerTimeout, ConnTimeout: globalConfig.ConnTimeout})
 	if err != nil {
 		logger.Errorln("Failed to handle new worker:", err)
 		return

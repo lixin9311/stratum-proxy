@@ -229,6 +229,8 @@ func (agent *Agent) write(v interface{}) error {
 }
 
 func (agent *Agent) read(v interface{}) error {
+	// agent may wait a lot of time for a new request
+	// agent.conn.SetReadDeadline(time.Now().Add(agent.conf.ConnTimeout))
 	return agent.dec.Decode(v)
 }
 

@@ -3,4 +3,5 @@ Upstream: lyra2rev2.jp.nicehash.com:3347
 WorkerDifficulty: 0.1
 DebugLevel: 5
 AgentTimeout: 30m
+WorkerTimeout: 1m
 ConnTimeout: 10s
