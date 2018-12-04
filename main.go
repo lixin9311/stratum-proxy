@@ -207,6 +207,7 @@ func handleNewConn(conn net.Conn) {
 
 	// 2. put the worker into the pool
 	index := strings.Split(worker.Username, ".")[1] + ":" + worker.Password
+	// get the ilock for the initialization for the worker
 	initialLock.Lock()
 	ilock, ok := initializingWorker[index]
 	if !ok {
@@ -219,7 +220,11 @@ func handleNewConn(conn net.Conn) {
 	// to ensure 1 worker only has 1 agent
 	ilock.Lock()
 
-	logger.Infof("WORKER[%s] registering...\n", index)
+	logger.Infof("WORKER[%s]: registering...\n", index)
+	if w, ok := wPool.Get(index); ok {
+		logger.Warnf("WORKER[%s]: Already exists, IsDestroyed: %v, destroy the old one..\n", index, w.IsDestroyed())
+		w.Destroy()
+	}
 	wPool.Put(index, worker)
 
 	// 3. find or create correspoding agent

@@ -108,6 +108,13 @@ func (w *Worker) Destroy() {
 	logger.Debugf("WORKER[%s]: Destroyed\n", w.alias)
 }
 
+// IsDestroyed tells wether the worker has been destroyed
+func (w *Worker) IsDestroyed() bool {
+	w.closeLock.Lock()
+	defer w.closeLock.Unlock()
+	return w.isDestroyed
+}
+
 // SetWorkerDifficulty sets the difficulty for the real miner
 func (w *Worker) SetWorkerDifficulty(diff float64) error {
 	w.rwLock.Lock()
