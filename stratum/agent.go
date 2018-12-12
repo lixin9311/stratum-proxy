@@ -7,7 +7,6 @@ import (
 	"net"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -40,6 +39,7 @@ type Agent struct {
 	dec              *json.Decoder
 	enc              *json.Encoder
 	conf             *AgentConfig
+	seqLock          sync.Mutex
 	seq              uint64
 	subcribeID       string
 	conn             net.Conn
@@ -280,7 +280,10 @@ func (agent *Agent) handshake() error {
 }
 
 func (agent *Agent) seqInc() uint64 {
-	return atomic.AddUint64(&agent.seq, 1)
+	agent.seqLock.Lock()
+	defer agent.seqLock.Unlock()
+	agent.seq++
+	return agent.seq
 }
 
 // NewAgent creates and initializes a new Agent from the AgentConfig
