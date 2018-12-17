@@ -214,11 +214,10 @@ func handleNewConn(conn net.Conn) {
 		ilock = new(sync.Mutex)
 		initializingWorker[index] = ilock
 	}
-	initialLock.Unlock()
-
 	// Lock until the agent is found or initialized
 	// to ensure 1 worker only has 1 agent
 	ilock.Lock()
+	initialLock.Unlock()
 
 	logger.Infof("WORKER[%s]: registering...\n", index)
 	if w, ok := wPool.Get(index); ok {
@@ -259,11 +258,20 @@ func handleNewConn(conn net.Conn) {
 		// successful
 		// seperate the agent consumer
 		go func(agent *stratum.Agent, alias string) {
+			initialLock.Lock()
+			ilock, ok := initializingWorker[alias]
+			if ok {
+				delete(initializingWorker, alias)
+			}
+			ilock.Unlock()
+			initialLock.Unlock()
+
 			status.addAgent()
 			uptimeLock.Lock()
 			now := time.Now()
 			uptimes["A"+alias] = &now
 			uptimeLock.Unlock()
+
 			defer func() {
 				aPool.Delete(alias)
 				uptimeLock.Lock()
@@ -315,7 +323,7 @@ func handleNewConn(conn net.Conn) {
 	} else {
 		logger.Infof("AGENT[%s] found, reunsing.\n", index)
 	}
-	ilock.Unlock()
+
 	// 4. pipe the agent and worker
 	pipe(agent, worker, index)
 }
