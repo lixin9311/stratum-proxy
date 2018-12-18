@@ -4,4 +4,5 @@ WorkerDifficulty: 0.1
 DebugLevel: 5
 AgentTimeout: 30m
 WorkerTimeout: 1m
-ConnTimeout: 10s
+ConnTimeout: 3s
+SubmitRetry: 3

@@ -375,13 +375,26 @@ func pipe(agent *stratum.Agent, worker *stratum.Worker, alias string) {
 
 	// read from worker
 	for {
+		var err error
 		submit, ok := <-submitCh
 		// worker or agent is destroyed
 		if !ok || agent.IsDestroyed() {
 			return
 		}
-		if err := agent.WriteRequstRewriteID(submit); err != nil {
-			logger.Errorf("PIPE[%s] : Failed to submit share to upstream: %v", alias, err)
+		for i := 0; i < globalConfig.SubmitRetry; i++ {
+			err = agent.WriteRequstRewriteID(submit)
+			if err != nil {
+				logger.Errorf("PIPE[%s]: Failed to submit share to upstream: %v\n", alias, err)
+				if err, ok := err.(net.Error); ok && err.Timeout() {
+					logger.Warnf("PIPE[%s]: Retry submit[%d]...\n", alias, i+1)
+					continue
+				} else {
+					return
+				}
+			}
+		}
+		if err != nil {
+			logger.Warnf("PIPE[%s]: Retry failed...\n", alias)
 			return
 		}
 		status.addSubmit()

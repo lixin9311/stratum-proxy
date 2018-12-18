@@ -13,14 +13,6 @@ import (
 	"github.com/fsnotify/fsnotify"
 )
 
-// AgentName:
-// Upstream: lyra2rev2.jp.nicehash.com:3347
-// WorkerDifficulty: 64
-// DebugLevel: 5
-// AgentTimeout: 30m
-// WorkerTimeout: 1m
-// ConnTimeout: 10s
-
 type Config struct {
 	AgentName        string        `yaml:"AgentName"`
 	Upstream         string        `yaml:"Upstream"`
@@ -29,6 +21,7 @@ type Config struct {
 	AgentTimeout     time.Duration `yaml:"AgentTimeout"`
 	WorkerTimeout    time.Duration `yaml:"WorkerTimeout"`
 	ConnTimeout      time.Duration `yaml:"ConnTimeout"`
+	SubmitRetry      int           `yaml:"SubmitRetry"`
 }
 
 func NewConfigFromFile(path string) (*Config, error) {
@@ -61,6 +54,9 @@ func CheckConfig(conf *Config) error {
 	}
 	if conf.ConnTimeout < 0 {
 		return fmt.Errorf("Invalid ConnTimeout(%v)", conf.ConnTimeout)
+	}
+	if conf.SubmitRetry < 0 {
+		return fmt.Errorf("Invalid SubmitRetry(%v)", conf.SubmitRetry)
 	}
 	return nil
 }
