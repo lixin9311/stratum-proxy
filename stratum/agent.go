@@ -149,7 +149,12 @@ func (agent *Agent) loop(ctx context.Context) {
 					logger.Warnf("AGENT[%s]: dont know how to process method(%s)\n", agent.alias, req.Method)
 				}
 				// no relay design
-				agent.notification <- req
+				agent.Lock()
+				if !agent.destroyed {
+					agent.notification <- req
+				}
+				// else will done
+				agent.Unlock()
 
 			} else {
 				// response

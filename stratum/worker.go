@@ -223,7 +223,11 @@ func (w *Worker) loop(ctx context.Context) {
 					atomic.AddUint64(&w.numOfSubmits, 1)
 					if diff >= targetDiff {
 						logger.Debugf("WORKER[%s]: Share diff(%.1f) higher than target diff(%.1f), send it.\n", w.alias, diff, targetDiff)
-						w.notification <- request
+						w.closeLock.Lock()
+						if !w.isDestroyed {
+							w.notification <- request
+						}
+						w.closeLock.Unlock()
 					}
 					if err := w.ack(id, true); err != nil {
 						logger.Errorf("WORKER[%s]: Failed to ack msg[%d:mining.submit], %v\n", id, err)
