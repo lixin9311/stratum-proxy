@@ -135,9 +135,10 @@ func startReportLoop(duration time.Duration) {
 			logger.Println("============ individual report ============")
 			akeys := aPool.Keys()
 			sort.Strings(akeys)
-			for _, alias := range akeys {
-				agent, _ := aPool.Get(alias)
-				worker, notOrphan := wPool.Get(alias)
+			for _, index := range akeys {
+				alias := strings.Split(index, ".")[1]
+				agent, _ := aPool.Get(index)
+				worker, notOrphan := wPool.Get(index)
 				var status string
 				if agent.IsDestroyed() {
 					status = "zombie"
@@ -148,12 +149,12 @@ func startReportLoop(duration time.Duration) {
 				// AGENT[1:x] 512  dead  normal 0h0m0s WORKER[1:x] 64 1293MH/s 0h0m0s
 				var line string
 				uptimeLock.Lock()
-				aUptime := uptimes["A"+alias]
+				aUptime := uptimes["A"+index]
 				aUptimeStr := sinceFormat(aUptime)
 				if !notOrphan {
 					line = fmt.Sprintf("AGENT[%s]\t%.0f\t%s\torphan\t%s", alias, agent.GetTargetDiff(), status, aUptimeStr)
 				} else {
-					wUptime := uptimes["W"+alias]
+					wUptime := uptimes["W"+index]
 					mhash := globalConfig.WorkerDifficulty * 16 * float64(worker.ResetNumOfSubmits()) / duration.Seconds()
 					line = fmt.Sprintf("AGENT[%s]\t%.0f\t%s\tnormal\t%s\tWORKER[%s]\t%.0f\t%.1fMH/s\t%s", alias, agent.GetTargetDiff(), status, aUptimeStr, alias, globalConfig.WorkerDifficulty, mhash, sinceFormat(wUptime))
 				}
@@ -206,7 +207,8 @@ func handleNewConn(conn net.Conn) {
 	}
 
 	// 2. put the worker into the pool
-	index := strings.Split(worker.Username, ".")[1] + ":" + worker.Password
+	index := worker.Username + ":" + worker.Password
+	alias := strings.Split(worker.Username, ".")[1] + ":" + worker.Password
 	// get the ilock for the initialization for the worker
 	initialLock.Lock()
 	ilock, ok := initializingWorker[index]
@@ -219,9 +221,9 @@ func handleNewConn(conn net.Conn) {
 	ilock.Lock()
 	initialLock.Unlock()
 
-	logger.Infof("WORKER[%s]: registering...\n", index)
+	logger.Infof("WORKER[%s]: registering...\n", alias)
 	if w, ok := wPool.Get(index); ok {
-		logger.Warnf("WORKER[%s]: Already exists, IsDestroyed: %v, destroy the old one..\n", index, w.IsDestroyed())
+		logger.Warnf("WORKER[%s]: Already exists, IsDestroyed: %v, destroy the old one..\n", alias, w.IsDestroyed())
 		w.Destroy()
 	}
 	wPool.Put(index, worker)
@@ -229,7 +231,7 @@ func handleNewConn(conn net.Conn) {
 	// 3. find or create correspoding agent
 	agent, ok := aPool.Get(index)
 	if !ok || agent.IsDestroyed() {
-		logger.Infof("AGENT[%s] not found, creating new one...\n", index)
+		logger.Infof("AGENT[%s] not found, creating new one...\n", alias)
 		agentConf := &stratum.AgentConfig{
 			Name:         globalConfig.AgentName,
 			Username:     worker.Username,
@@ -241,7 +243,7 @@ func handleNewConn(conn net.Conn) {
 		for i := 0; i < 10; i++ {
 			agent, err = stratum.NewAgent(agentConf)
 			if err != nil {
-				logger.Errorf("Failed to create new AGENT[%s], retry after 10s...\n", index)
+				logger.Errorf("Failed to create new AGENT[%s], retry after 10s...\n", alias)
 				time.Sleep(10 * time.Second)
 				continue
 			}
@@ -249,7 +251,7 @@ func handleNewConn(conn net.Conn) {
 		}
 
 		if err != nil {
-			logger.Errorf("Failed to create new AGENT[%s] after 10 retries... Disconnecting the worker...\n", index)
+			logger.Errorf("Failed to create new AGENT[%s] after 10 retries... Disconnecting the worker...\n", alias)
 			worker.Destroy()
 			wPool.Delete(index)
 			return
@@ -257,11 +259,11 @@ func handleNewConn(conn net.Conn) {
 
 		// successful
 		// seperate the agent consumer
-		go func(agent *stratum.Agent, alias string) {
+		go func(agent *stratum.Agent, index, alias string) {
 			initialLock.Lock()
-			ilock, ok := initializingWorker[alias]
+			ilock, ok := initializingWorker[index]
 			if ok {
-				delete(initializingWorker, alias)
+				delete(initializingWorker, index)
 			}
 			ilock.Unlock()
 			initialLock.Unlock()
@@ -269,13 +271,13 @@ func handleNewConn(conn net.Conn) {
 			status.addAgent()
 			uptimeLock.Lock()
 			now := time.Now()
-			uptimes["A"+alias] = &now
+			uptimes["A"+index] = &now
 			uptimeLock.Unlock()
 
 			defer func() {
-				aPool.Delete(alias)
+				aPool.Delete(index)
 				uptimeLock.Lock()
-				delete(uptimes, "A"+alias)
+				delete(uptimes, "A"+index)
 				uptimeLock.Unlock()
 				status.subAgent()
 				logger.Warnf("AGENT[%s]: Is dead.\n", alias)
@@ -291,7 +293,7 @@ func handleNewConn(conn net.Conn) {
 					return
 				}
 				// 2. find the worker
-				worker, ok := wPool.Get(alias)
+				worker, ok := wPool.Get(index)
 				if !ok {
 					logger.Debugf("AGENT[%s]: There is no worker for now.\n", alias)
 					continue
@@ -304,43 +306,43 @@ func handleNewConn(conn net.Conn) {
 				case "mining.set_extranonce":
 					en, l := agent.GetExtraNonce()
 					if err := worker.SetExtranonce(en, l); err != nil {
-						wPool.Delete(alias)
+						wPool.Delete(index)
 						worker.Destroy()
 						// return
 					}
 				case "mining.notify":
 					job := agent.GetJob()
 					if err := worker.SetJob(job); err != nil {
-						wPool.Delete(alias)
+						wPool.Delete(index)
 						worker.Destroy()
 						// return
 					}
 				}
 
 			}
-		}(agent, index)
+		}(agent, index, alias)
 		aPool.Put(index, agent)
 	} else {
-		logger.Infof("AGENT[%s] found, reunsing.\n", index)
+		logger.Infof("AGENT[%s] found, reunsing.\n", alias)
 	}
 
 	// 4. pipe the agent and worker
-	pipe(agent, worker, index)
+	pipe(agent, worker, index, alias)
 }
 
 // pipe the date, the death of any worker will lead to the return of this function
-func pipe(agent *stratum.Agent, worker *stratum.Worker, alias string) {
+func pipe(agent *stratum.Agent, worker *stratum.Worker, index, alias string) {
 	status.addWorker()
 	uptimeLock.Lock()
 	now := time.Now()
-	uptimes["W"+alias] = &now
+	uptimes["W"+index] = &now
 	uptimeLock.Unlock()
 	// Any error leads to the destroy of worker
 	defer func() {
 		uptimeLock.Lock()
-		delete(uptimes, "W"+alias)
+		delete(uptimes, "W"+index)
 		uptimeLock.Unlock()
-		wPool.Delete(alias)
+		wPool.Delete(index)
 		worker.Destroy()
 		status.subWorker()
 		logger.Warnf("WORKER[%s]: Is dead.\n", alias)
