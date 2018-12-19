@@ -216,7 +216,9 @@ func unlock(index string) {
 		delete(initializingWorker, index)
 	}
 	initialLock.Unlock()
-	ilock.Unlock()
+	if ok {
+		ilock.Unlock()
+	}
 }
 
 func handleNewConn(conn net.Conn) {
@@ -256,7 +258,7 @@ func handleNewConn(conn net.Conn) {
 		for i := 0; i < 10; i++ {
 			agent, err = stratum.NewAgent(agentConf)
 			if err != nil {
-				logger.Errorf("Failed to create new AGENT[%s], retry after 10s...\n", alias)
+				logger.Errorf("Failed to create new AGENT[%s],%v retry after 10s...\n", alias, err)
 				time.Sleep(10 * time.Second)
 				continue
 			}
