@@ -300,8 +300,6 @@ func NewAgent(conf *AgentConfig) (*Agent, error) {
 	agent.notification = make(chan *Request, 10)
 	agent.respNotification = map[uint64](chan *Response){}
 
-	agent.enc = json.NewEncoder(agent.conn)
-	agent.dec = json.NewDecoder(agent.conn)
 	ctx, cancel := context.WithCancel(context.Background())
 	agent.cancel = cancel
 	agent.selfDestroyTimer = time.AfterFunc(conf.AgentTimeout, agent.Destroy)
@@ -312,6 +310,8 @@ func NewAgent(conf *AgentConfig) (*Agent, error) {
 		return nil, err
 	}
 	agent.conn = conn
+	agent.enc = json.NewEncoder(agent.conn)
+	agent.dec = json.NewDecoder(agent.conn)
 	go agent.loop(ctx)
 	if err := agent.handshake(); err != nil {
 		agent.Destroy()
