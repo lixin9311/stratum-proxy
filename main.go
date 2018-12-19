@@ -335,6 +335,7 @@ func handleNewConn(conn net.Conn) {
 		aPool.Put(index, agent)
 	} else {
 		logger.Infof("AGENT[%s] found, reunsing.\n", alias)
+		unlock(index)
 	}
 
 	// 4. pipe the agent and worker
