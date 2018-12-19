@@ -198,6 +198,27 @@ func ListenAndHandle(port string) error {
 var initializingWorker = map[string]*sync.Mutex{}
 var initialLock = sync.Mutex{}
 
+func lock(index string) {
+	initialLock.Lock()
+	ilock, ok := initializingWorker[index]
+	if !ok {
+		ilock = new(sync.Mutex)
+		initializingWorker[index] = ilock
+	}
+	initialLock.Unlock()
+	ilock.Lock()
+}
+
+func unlock(index string) {
+	initialLock.Lock()
+	ilock, ok := initializingWorker[index]
+	if ok {
+		delete(initializingWorker, index)
+	}
+	initialLock.Unlock()
+	ilock.Unlock()
+}
+
 func handleNewConn(conn net.Conn) {
 	// 1. initialize the worker
 	worker, err := stratum.NewWorker(conn, &stratum.WorkerConfig{WorkerTimeout: globalConfig.WorkerTimeout, ConnTimeout: globalConfig.ConnTimeout})
@@ -209,17 +230,9 @@ func handleNewConn(conn net.Conn) {
 	// 2. put the worker into the pool
 	index := worker.Username + ":" + worker.Password
 	alias := strings.Split(worker.Username, ".")[1] + ":" + worker.Password
-	// get the ilock for the initialization for the worker
-	initialLock.Lock()
-	ilock, ok := initializingWorker[index]
-	if !ok {
-		ilock = new(sync.Mutex)
-		initializingWorker[index] = ilock
-	}
 	// Lock until the agent is found or initialized
 	// to ensure 1 worker only has 1 agent
-	ilock.Lock()
-	initialLock.Unlock()
+	lock(index)
 
 	logger.Infof("WORKER[%s]: registering...\n", alias)
 	if w, ok := wPool.Get(index); ok {
@@ -254,19 +267,15 @@ func handleNewConn(conn net.Conn) {
 			logger.Errorf("Failed to create new AGENT[%s] after 10 retries... Disconnecting the worker...\n", alias)
 			worker.Destroy()
 			wPool.Delete(index)
+			// clean up the lock
+			unlock(index)
 			return
 		}
 
 		// successful
 		// seperate the agent consumer
 		go func(agent *stratum.Agent, index, alias string) {
-			initialLock.Lock()
-			ilock, ok := initializingWorker[index]
-			if ok {
-				delete(initializingWorker, index)
-			}
-			ilock.Unlock()
-			initialLock.Unlock()
+			unlock(index)
 
 			status.addAgent()
 			uptimeLock.Lock()
