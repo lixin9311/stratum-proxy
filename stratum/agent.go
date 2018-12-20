@@ -53,15 +53,34 @@ func (agent *Agent) Destroy() {
 	agent.Lock()
 	defer agent.Unlock()
 	// avoid closing a closed channel
-	if !agent.destroyed {
-		agent.destroyed = true
-		agent.selfDestroyTimer.Stop()
-		agent.cancel()
-		agent.conn.Close()
-		close(agent.notification)
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Errorf("AGENT[%s]: err when destroy %v\n", r)
+		}
+	}()
 
-		logger.Debugf("AGENT[%s]: Destroyed\n", agent.alias)
-	}
+	func() {
+		if !agent.destroyed {
+			agent.destroyed = true
+			agent.selfDestroyTimer.Stop()
+			if agent.cancel == nil {
+				logger.Errorf("AGENT[%s]: cancel nil bug.\n", agent.alias)
+			} else {
+				agent.cancel()
+			}
+
+			if agent.conn == nil {
+				logger.Errorf("AGENT[%s]: conn nil bug.\n", agent.alias)
+			} else {
+				agent.conn.Close()
+			}
+
+			close(agent.notification)
+
+			logger.Debugf("AGENT[%s]: Destroyed\n", agent.alias)
+		}
+	}()
+
 }
 
 // IsDestroyed returns true is the agens has already been destroyed
@@ -295,14 +314,6 @@ func (agent *Agent) seqInc() uint64 {
 func NewAgent(conf *AgentConfig) (*Agent, error) {
 	agent := new(Agent)
 	agent.conf = conf
-	// init fields
-	agent.alias = strings.Split(conf.Username, ".")[1] + ":" + conf.Password
-	agent.notification = make(chan *Request, 10)
-	agent.respNotification = map[uint64](chan *Response){}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	agent.cancel = cancel
-	agent.selfDestroyTimer = time.AfterFunc(conf.AgentTimeout, agent.Destroy)
 
 	// connection
 	conn, err := net.DialTimeout("tcp4", agent.conf.Upstream, agent.conf.ConnTimeout)
@@ -312,6 +323,16 @@ func NewAgent(conf *AgentConfig) (*Agent, error) {
 	agent.conn = conn
 	agent.enc = json.NewEncoder(agent.conn)
 	agent.dec = json.NewDecoder(agent.conn)
+
+	// init fields
+	agent.alias = strings.Split(conf.Username, ".")[1] + ":" + conf.Password
+	agent.notification = make(chan *Request, 10)
+	agent.respNotification = map[uint64](chan *Response){}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	agent.cancel = cancel
+	agent.selfDestroyTimer = time.AfterFunc(conf.AgentTimeout, agent.Destroy)
+
 	go agent.loop(ctx)
 	if err := agent.handshake(); err != nil {
 		agent.Destroy()
