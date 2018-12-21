@@ -405,6 +405,8 @@ func pipe(agent *stratum.Agent, worker *stratum.Worker, index, alias string) {
 				} else {
 					return
 				}
+			} else {
+				break
 			}
 		}
 		if err != nil {
