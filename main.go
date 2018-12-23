@@ -185,13 +185,17 @@ func handleNewConn(conn net.Conn) {
 		// successful
 		// seperate the agent consumer
 		go func(agent *stratum.Agent, index, alias string) {
-			unlock(index)
+			// put the agent into the pool
+			aPool.Put(index, agent)
 
 			status.addAgent()
 			uptimeLock.Lock()
 			now := time.Now()
 			uptimes["A"+index] = &now
 			uptimeLock.Unlock()
+
+			// release the initialization lock
+			unlock(index)
 
 			defer func() {
 				aPool.Delete(index)
@@ -240,7 +244,6 @@ func handleNewConn(conn net.Conn) {
 
 			}
 		}(agent, index, alias)
-		aPool.Put(index, agent)
 	} else {
 		logger.Infof("AGENT[%s] found, reunsing.\n", alias)
 		unlock(index)
