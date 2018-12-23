@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net"
 	"path/filepath"
 	"time"
@@ -85,7 +84,7 @@ func watchConfig(path string) (chan *Config, error) {
 				if event.Op&fsnotify.Write == fsnotify.Write {
 					conf, err := NewConfigFromFile(absPath)
 					if err != nil {
-						log.Printf("Malformed config file: %v\n", err)
+						fmt.Printf("Malformed config file: %v\n", err)
 						continue
 					}
 					ch <- conf

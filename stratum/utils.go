@@ -109,9 +109,6 @@ func getDiff(job *Job, extranonce1 string, share interface{}) float64 {
 	header = append(header, reverseByByte(bNTime)...)
 	header = append(header, reverseByByte(bNBits)...)
 	header = append(header, reverseByByte(bNonce)...)
-	// py 000000202d430595dbeb659b64648126f6609d669207aa08caff94fc858f0e296dffe7f2cd9d8101ed3e96bda4a9aa27b686aa70d3f73a3a0c4e8ae097ccaf47c3c9d7663785015c7b82681a0002f6d8
-	// cm 000000202d430595dbeb659b64648126f6609d669207aa08caff94fc858f0e296dffe7f2cd9d8101ed3e96bda4a9aa27b686aa70d3f73a3a0c4e8ae097ccaf47c3c9d7663785015c7b82681a0002f6d8
-	// go 000000202d430595dbeb659b64648126f6609d669207aa08caff94fc858f0e296dffe7f2cd9d8101ed3e96bda4a9aa27b686aa70d3f73a3a0c4e8ae097ccaf47c3c9d7663785015c7b82681a0002f6d8
 	headerHashBin, err := lyra2rev2.Sum(header)
 	if err != nil {
 		logger.Fatalf("%v\n", err)
@@ -121,6 +118,7 @@ func getDiff(job *Job, extranonce1 string, share interface{}) float64 {
 	hashed := big.NewInt(0).SetBytes(headerHashBin)
 	hashedf := big.NewFloat(0).SetInt(hashed)
 
+	// 1 << 232
 	wtf := big.NewInt(1)
 	wtf = wtf.Lsh(wtf, 232)
 	wtff := big.NewFloat(0).SetInt(wtf)
